@@ -29,7 +29,7 @@ class MobileHub {
         char *Ksession;
 
         MobileHub(int packSize) {
-            Serial.println(">> Creating Mobile Hub Object");
+            Serial.println(">> [MOBILE_HUB] Creating Mobile Hub Object");
             STATE = 1;
             Authenticated = false;
             lastPackSize = packSize;
