@@ -12,13 +12,13 @@ void setup() {
   // Initialization delay
   delay(5000);
 
-  Serial.println(">> Starting setup...");
+  Serial.println(">> [MAIN] Starting setup...");
   
   // Start Device LED signal
   start_signal();
   
   // Initialize BLE Server
-  Serial.println(">> Initializing BLE Server...");
+  Serial.println(">> [MAIN] Initializing BLE Server...");
   initializeServer();
 }
 

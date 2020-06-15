@@ -5,8 +5,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include "mhub.cpp"
 #include <string.h>
+#include "src/MobileHub/mhub.cpp"
 
 // Defining Security Service and Characteristics
 #define SECURITY_SERVICE_UUID   "dc33e26c-a82e-4fea-82ab-daa5dfac3dd3"
@@ -30,6 +30,7 @@ BLECharacteristic *pCharacteristic_AUTH_WRITE;
 BLECharacteristic *pCharacteristic_GET_HELLO;
 BLECharacteristic *pCharacteristic_READ;
 BLECharacteristic *pCharacteristic_WRITE;
+BLEServer *pServer;
 
 
 // Defining Callback functions
@@ -37,7 +38,7 @@ BLECharacteristic *pCharacteristic_WRITE;
 class ServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         isConnected = true;
-        Serial.println(">> Device Connected!");
+        Serial.println(">> [BLE_SERVER] Device Connected!");
 
         // Stop Advertising
         pServer->getAdvertising()->stop();
@@ -49,14 +50,14 @@ class ServerCallbacks: public BLEServerCallbacks {
 
     void onDisconnect(BLEServer* pServer) {
         isConnected = false;
-        Serial.println(">> Device Disconnected!");
+        Serial.println(">> [BLE_SERVER] Device Disconnected!");
 
         // Remove connectedHub
         connectedHub = NULL;
 
         // Start advertising again
         pServer->getAdvertising()->start();
-        Serial.println(">> Restarted Advertising. Listening for connection...");
+        Serial.println(">> [BLE_SERVER] Restarted Advertising. Listening for connection...");
 
     }
 };
@@ -65,41 +66,63 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
     
     // When a write request arrives
     void onWrite(BLECharacteristic *pCharacteristic) {
-        Serial.print(">> Characteristic onWrite: ");
+        Serial.print(">> [BLE_SERVER] Characteristic onWrite: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str());
 
         // SET_MAC -> Stores Hub Mac Address in MobileHub Object
         if (pCharacteristic->getUUID().toString() == SET_MAC_UUID) {
             std::string HubAddress = pCharacteristic->getValue();
-            Serial.print(">>> [SET_MAC] Hub Address received: ");
+            Serial.print(">>> [BLE_SERVER] [SET_MAC] Hub Address received: ");
             Serial.println(HubAddress.c_str());
             connectedHub->HubAddress = HubAddress;
         }
         // AUTH_WRITE -> Receives Authentication Package, in 3 parts
         else if (pCharacteristic->getUUID().toString() == AUTH_WRITE_UUID) {
             if (connectedHub->Authenticated) {
-                Serial.println(">>> [AUTH_WRITE] Device already authenticated!");
+                Serial.println(">>> [BLE_SERVER] [AUTH_WRITE] Device already authenticated!");
                 return;
             }
 
-            Serial.print(">>>> [AUTH_WRITE] Copying value into PACK. In State: ");
+            Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Copying value into PACK. In State: ");
             Serial.println(connectedHub->STATE);
 
             // Get characteristic value
-            std::string value = pCharacteristic->getValue();
+            std::string data = pCharacteristic->getValue();
+
+            // DEBUG
+            Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] PackageK content (hex): ");
+            for (int i=0; i<data.length(); i++){
+                    Serial.print(data[i], HEX);
+            }
+            Serial.println("");
+
+            if (data.length() != 20){
+                Serial.println(">>>> [BLE_SERVER] [AUTH_WRITE] Failed to read BLE packet. There are missing bytes.");
+            }
+
+            // DEBUG END
 
             // Copy value to Package
-            memcpy( connectedHub->pack , value.c_str() , value.size() );
+            memcpy( (connectedHub->pack + connectedHub->lastPackSize)  , data.c_str() , 20 );
 
             // Increase pack position by value size
-            connectedHub->lastPackSize = connectedHub->lastPackSize + value.size();
+            connectedHub->lastPackSize = connectedHub->lastPackSize + 20;
 
             // Increase STATE
             connectedHub->STATE++;
 
             if (connectedHub->STATE == 4) {
-                Serial.print(">>>> [AUTH_WRITE] Pack complete! Content: ");
-                Serial.println(connectedHub->pack.toString().c_str());
+                Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Pack is complete! Content: ");
+                printByteArray(connectedHub->pack, 60);
+
+                // Checks PackageK HMAC authentication
+                char * PackageK = checkAuthentication( connectedHub->pack );
+
+                // If authentication fails, disconnects and starts listenning for new connections again
+                if (PackageK == NULL)
+                    pServer->disconnect(pServer->getConnId());
+
+
 
             }
 
@@ -110,18 +133,18 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
 
     // When a read request arrives
     void onRead(BLECharacteristic *pCharacteristic) {
-        Serial.print(">> Characteristic onRead: ");
+        Serial.print(">> [BLE_SERVER] Characteristic onRead: ");
         Serial.println(pCharacteristic->getUUID().toString().c_str());
 
         // GET_MAC -> Sends the MacAddress of this device to the Mobile Hub
         if (pCharacteristic->getUUID().toString() == GET_MAC_UUID) {
             std::string macAddress = BLEDevice::getAddress().toString();
-            Serial.print(">>> [GET_MAC] Sending device Address: ");
+            Serial.print(">>> [BLE_SERVER] [GET_MAC] Sending device Address: ");
             Serial.println(macAddress.c_str());
 
             pCharacteristic->setValue(macAddress);
             pCharacteristic->notify();
-            Serial.println(">>> [GET_MAC] MacAddress sent!");
+            Serial.println(">>> [BLE_SERVER] [GET_MAC] MacAddress sent!");
         }
 
     }
@@ -138,7 +161,7 @@ void initializeServer() {
     BLEDevice::init("BLE_Server");
 
     // Configure Device as a Server
-    BLEServer *pServer = BLEDevice::createServer();
+    pServer = BLEDevice::createServer();
     pServer->setCallbacks(new ServerCallbacks());
 
     // Create Security Service
@@ -161,20 +184,23 @@ void initializeServer() {
     pCharacteristic_WRITE->setCallbacks(new CharacteristicCallbacks());
 
     // Set Descriptors to all characteristics
-    pCharacteristic_GET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    pCharacteristic_SET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    pCharacteristic_AUTH_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    pCharacteristic_GET_HELLO->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    pCharacteristic_READ->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    pCharacteristic_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_GET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_SET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_AUTH_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_GET_HELLO->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_READ->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    // pCharacteristic_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
+    pCharacteristic_GET_MAC->addDescriptor(new BLE2902());
+    pCharacteristic_SET_MAC->addDescriptor(new BLE2902());
+    pCharacteristic_AUTH_WRITE->addDescriptor(new BLE2902());
+    pCharacteristic_GET_HELLO->addDescriptor(new BLE2902());
+    pCharacteristic_READ->addDescriptor(new BLE2902());
+    pCharacteristic_WRITE->addDescriptor(new BLE2902());
 
     // Start service
     pService->start();
 
     // Start advertising
     pServer->getAdvertising()->start();
-    Serial.println(">> BLE Server started. Listening for connections...");
+    Serial.println(">> [BLE_SERVER] BLE Server started. Listening for connections...");
 }
-
-
-// funcao que dá start no processo de autenticação

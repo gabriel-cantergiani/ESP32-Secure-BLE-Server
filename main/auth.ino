@@ -1,64 +1,96 @@
 // aqui vão: métodos do processo de autenticação, e métodos criptográficos
 
-#include <MD5.h>
+#include "src/MD5/MD5.h"
+#include "src/RC4/rc4.h"
 
-// SDDL auth symmetric key
-char * Kauth_sddl = "Kauth_sddl"
-// This Smart Object auth symmetric key
+/**********************
+
+Initializing variables
+
+************************/
+
+// SDDL authentication symmetric key
+char *Kauth_sddl = "Kauth_sddl";
+
+// This Smart Object authentication symmetric key
+char *Kauth_obj = "Kauth_obj";
+
 // This Smart Object cipher symmetric key
+char *Kcipher_obj = "Kcipher_obj"; 
 
-// MD5  hashMD5;
-// char *md5str = hashMD5.hmac_md5(text, text_len, key, key_len);
+//RC4 encryption structure
+arc4_context rc4;
 
-    // private static SecretKeySpec Kauth_sddl;
-    // private static byte[] Kauth_obj;
-
-    // /* Symetric Cipher Key (S-OBJ)*/
-    // private byte[] Kcipher_obj = "Kcipher_obj".getBytes("ASCII");
-
-    // /* Initializing Authentications Keys */
-    // static {
-    //     try {
-    //         Kauth_sddl = new SecretKeySpec(("Kauth_sddl").getBytes("ASCII"), "hmacMD5");
-    //         Kauth_obj = ("Kauth_obj").getBytes("ASCII");
-    //     } catch (UnsupportedEncodingException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
+//MD5 Hashing structure
+MD5  hashMD5;
 
 
+/*********************
+
+checkAuthentication
+
+*********************/
 
 char * checkAuthentication(char *pack){
-    Serial.println(">> Checking Package Authentication");
+    Serial.println(">> [AUTH] Checking Package Authentication");
 
-    char * PackageK;
-    char * PackageK_HMAC;
+    char * PackageK = new char[24];
+    char * PackageK_HMAC = new char[16];
 
     // Copy first 24 bytes to Package K
-
+    memcpy( PackageK , pack, 24 );
+    Serial.print(">>> [AUTH] PackageK: ");
+    printByteArray( PackageK, 24 );
 
     // Copy from byte 24 through 40 to Package K HMAC
+    memcpy( PackageK_HMAC, (pack + 24), 16 );
+    Serial.print(">>> [AUTH] PackageK_HMAC: ");
+    printByteArray( PackageK_HMAC, 16 );
+
+    // Call Check Sign, passing PackageK, PackageK_HMAC
+    if ( CheckSignForPackageK( PackageK, PackageK_HMAC )) {
+        return PackageK;
+    }
+
+    return NULL;
+}
 
 
-    // Call Check Sign, passing PackageK, PackageK_HMAC, and Kauth_SDDL
+/*********************
 
+checkSignForPackage
+
+*********************/
+
+bool CheckSignForPackageK( char * PackageK, char * Received_PackageK_HMAC ) {
+    Serial.println(">> [AUTH] Checking Sign for PackageK");
+
+    // Generate HMAC_MD5 of PackageK, using Kauth_sddl
+    char * Generated_PackageK_HMAC;
+
+    Generated_PackageK_HMAC = hashMD5.hmac_md5(PackageK, 24, Kauth_sddl, strlen(Kauth_sddl));
+
+    for (int i=0; i < 16; i++){
+        if (Received_PackageK_HMAC[i] != Generated_PackageK_HMAC[i]){
+            Serial.println(">>> [AUTH] PackageK verification failed!");
+            return false;
+        }
+    }
+
+    Serial.println(">>> [AUTH] PackageK verified successfully!");
+    return true;
 
 }
 
 
-// private byte[] CheckAuthentication(ConnectedHub Hub){
-//         Log.i(TAG, "DEBUG >> Checking Authentication");
-//         print_hex(Hub.getPack());
-//         byte[] PackageK = Arrays.copyOfRange(Hub.getPack(), 0, 24);
-//         Log.d(TAG, "PackageK: ");
-//         print_hex(PackageK);
-//         byte[] Package_K_With_HMAC = Arrays.copyOfRange(Hub.getPack(), 24, 40);
-//         Log.d(TAG, "PackageK_HMAC: ");
-//         print_hex(Package_K_With_HMAC);
-//         boolean CheckSign = CheckSignForPackage(PackageK, Package_K_With_HMAC, Kauth_sddl);
-//         if(CheckSign) {
-//             return PackageK;
-//         }else{
-//             return null;
-//         }
-//     }
+/*******************
+
+print_byte_array
+
+*******************/
+
+void printByteArray( char * content , int content_len){
+    for(int i=0; i<content_len; i++)
+        Serial.print(content[i], HEX);
+    Serial.println();
+}
