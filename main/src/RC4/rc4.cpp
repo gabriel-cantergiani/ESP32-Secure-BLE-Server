@@ -71,3 +71,20 @@ int arc4_crypt( arc4_context *ctx, unsigned int length, const unsigned char *inp
 
     return( 0 );
 }
+
+/*
+*  RC4 wrapper function
+*/
+
+unsigned char * rc4_do_crypt( arc4_context *ctx, unsigned char * data, unsigned int dataLength, unsigned char * key, unsigned int keyLen ) {
+
+    unsigned char * output;
+
+    output = new unsigned char[dataLength];
+
+    arc4_init(ctx);
+    arc4_setup(ctx, key, keyLen);
+    arc4_crypt(ctx, dataLength, data, output);
+
+    return output;
+}

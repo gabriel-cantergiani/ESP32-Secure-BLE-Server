@@ -60,3 +60,11 @@ void arc4_setup( arc4_context *ctx, const unsigned char *key,
  */
 int arc4_crypt( arc4_context *ctx, unsigned int length, const unsigned char *input,
                 unsigned char *output );
+
+
+/*
+*
+*   Wrapper function
+*/
+
+unsigned char * rc4_do_crypt( arc4_context *ctx, unsigned char * data, unsigned int dataLength, unsigned char * key, unsigned int keyLen );
