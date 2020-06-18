@@ -6,7 +6,6 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <string.h>
-#include "src/MobileHub/mhub.cpp"
 
 // Defining Security Service and Characteristics
 #define SECURITY_SERVICE_UUID   "dc33e26c-a82e-4fea-82ab-daa5dfac3dd3"
@@ -22,7 +21,6 @@
 // Defining variables
 extern bool isConnected;
 extern bool isAuthenticated;
-MobileHub *connectedHub;
 
 BLECharacteristic *pCharacteristic_GET_MAC;
 BLECharacteristic *pCharacteristic_SET_MAC;
@@ -44,7 +42,7 @@ class ServerCallbacks: public BLEServerCallbacks {
         pServer->getAdvertising()->stop();
     
         // Create Mobile Hub Object
-        connectedHub = new MobileHub(0);
+        createMobileHub();
     
     }
 
@@ -53,7 +51,7 @@ class ServerCallbacks: public BLEServerCallbacks {
         Serial.println(">> [BLE_SERVER] Device Disconnected!");
 
         // Remove connectedHub
-        connectedHub = NULL;
+        removeConnectedHub();
 
         // Start advertising again
         pServer->getAdvertising()->start();
@@ -74,17 +72,17 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
             std::string HubAddress = pCharacteristic->getValue();
             Serial.print(">>> [BLE_SERVER] [SET_MAC] Hub Address received: ");
             Serial.println(HubAddress.c_str());
-            connectedHub->HubAddress = HubAddress;
+            setHubAddress(HubAddress);
         }
         // AUTH_WRITE -> Receives Authentication Package, in 3 parts
         else if (pCharacteristic->getUUID().toString() == AUTH_WRITE_UUID) {
-            if (connectedHub->Authenticated) {
+            if (isHubAuthenticated()) {
                 Serial.println(">>> [BLE_SERVER] [AUTH_WRITE] Device already authenticated!");
                 return;
             }
 
             Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Copying value into PACK. In State: ");
-            Serial.println(connectedHub->STATE);
+            Serial.println(getHubState());
 
             // Get characteristic value
             std::string data = pCharacteristic->getValue();
@@ -102,32 +100,27 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
 
             // DEBUG END
 
-            // Copy value to Package
-            memcpy( (connectedHub->pack + connectedHub->lastPackSize)  , data.c_str() , 20 );
+            copyPacketToHub(data.c_str(), 20);
 
-            // Increase pack position by value size
-            connectedHub->lastPackSize = connectedHub->lastPackSize + 20;
+            if (getHubState() == 4) {
+                Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Pack is complete!");
 
-            // Increase STATE
-            connectedHub->STATE++;
-
-            if (connectedHub->STATE == 4) {
-                Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Pack is complete! Content: ");
-                printByteArray(connectedHub->pack, 60);
-
-                // Checks PackageK HMAC authentication
-                char * PackageK = checkAuthentication( connectedHub->pack );
+                bool auth_result = checkAuthentication( (char*) BLEDevice::getAddress().toString().c_str());
 
                 // If authentication fails, disconnects and starts listenning for new connections again
-                if (PackageK == NULL)
+                if ( !auth_result){
+                    Serial.println(">>>> [BLE_SERVER] Authentication failed.");
                     pServer->disconnect(pServer->getConnId());
+                    return;
+                }
 
-
+                // Set as authenticated
+                isAuthenticated = true;
+                Serial.println(">> [BLE_SERVER] Device Authenticated!");
 
             }
 
         }
-
 
     }
 
@@ -145,6 +138,20 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
             pCharacteristic->setValue(macAddress);
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [GET_MAC] MacAddress sent!");
+        }
+        else if( pCharacteristic->getUUID().toString() == GET_HELLO_UUID) {
+            
+            if( !isHubAuthenticated() ){
+                Serial.println(">>> [BLE_SERVER] [GET_HELLO] Unauthenticated Mobile Hub trying to read Accepted Hello Message.");
+                return;
+            }
+
+            Serial.println(">>> [BLE_SERVER] [GET_HELLO] Sendind Accepted Hello Message to Authenticated MHub.");
+
+            pCharacteristic->setValue(getHubAcceptedMessage());
+            pCharacteristic->notify();
+            Serial.println(">>> [BLE_SERVER] [GET_HELLO] Accepted Hello Message sent!");
+
         }
 
     }
