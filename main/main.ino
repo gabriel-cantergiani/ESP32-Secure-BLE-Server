@@ -1,5 +1,10 @@
+/*
+*
+*   MAIN MODULE
+*   
+*   Created by: Gabriel Cantergiani, June 2020
+*/
 
-// Aqui é o arquivo central. Ele só instancia e chama funções e variáveis dos outros arquivos
 
 bool isConnected = false;
 bool isAuthenticated = false;
@@ -22,6 +27,7 @@ void setup() {
   initializeServer();
 }
 
+// Loop, calls LED signals to indicate current state of connectivity
 void loop() {
   
   while(!isConnected){

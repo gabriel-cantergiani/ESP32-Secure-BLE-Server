@@ -1,9 +1,19 @@
+/*
+*
+*   MOBILE HUB
+*   This module defines the MobileHub class, which holds data and information about a connected MobileHub
+*
+*   Created by: Gabriel Cantergiani, June 2020
+*/
+
+
 #include <Arduino.h>
 
 class MobileHub {
 
     public:
         char *HubAddress;
+        int HubAddressLen;
         int STATE;
         char *pack;
         int lastPackSize;

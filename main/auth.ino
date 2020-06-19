@@ -1,4 +1,10 @@
-// aqui vão: métodos do processo de autenticação, e métodos criptográficos
+/*
+*
+*   AUTH
+*   This module implements all Authentication and encryption functions related to the Authentication process
+*
+*   Created by: Gabriel Cantergiani, June 2020
+*/
 
 #include "src/MD5/MD5_hmac.h"
 #include "src/MD5/MD5_hash.h"
@@ -34,7 +40,7 @@ MobileHub *connectedHub;
 
 /*****************
 
-Mobile Hub functions
+Mobile Hub control functions
 
 ********************/
 
@@ -47,7 +53,9 @@ void removeConnectedHub(){
 }
 
 void setHubAddress(std::string HubAddress) {
-    connectedHub->HubAddress = (char *) HubAddress.c_str();
+    connectedHub->HubAddress = new char[HubAddress.length()];
+    connectedHub->HubAddressLen = HubAddress.length();
+    memcpy( connectedHub->HubAddress, HubAddress.c_str(), HubAddress.length() );
 }
 
 bool isHubAuthenticated(){
@@ -184,7 +192,6 @@ checkSignForPackageK
 bool checkSignForPackageK( char * PackageK, char * Received_PackageK_HMAC ) {
     Serial.println(">> [AUTH] Checking Sign for PackageK");
 
-    // Generate HMAC_MD5 of PackageK, using Kauth_sddl
     char * Generated_PackageK_HMAC;
 
     Generated_PackageK_HMAC = MD5_hmac.hmac_md5(PackageK, 24, Kauth_sddl, strlen(Kauth_sddl));
@@ -234,13 +241,13 @@ char * generateOTP( char * SObjectAddress, char * OTPChallenge, unsigned int OTP
     unsigned char * OTP;
     unsigned int memoryPosition = 0;
 
-    concatData = new char[strlen(SObjectAddress) + strlen(connectedHub->HubAddress) +  OTPChallengeLen + strlen(Kauth_obj)];
+    concatData = new char[strlen(SObjectAddress) + connectedHub->HubAddressLen +  OTPChallengeLen + strlen(Kauth_obj)];
 
     memcpy( concatData, SObjectAddress, strlen(SObjectAddress) );
     memoryPosition += strlen(SObjectAddress);
 
-    memcpy( (concatData + memoryPosition) , connectedHub->HubAddress, strlen(connectedHub->HubAddress) );
-    memoryPosition += strlen(connectedHub->HubAddress);
+    memcpy( (concatData + memoryPosition) , connectedHub->HubAddress, connectedHub->HubAddressLen );
+    memoryPosition += connectedHub->HubAddressLen;
 
     memcpy( (concatData + memoryPosition) , OTPChallenge, OTPChallengeLen );
     memoryPosition += OTPChallengeLen;
@@ -266,16 +273,15 @@ checkSignForHelloMessage
 bool checkSignForHelloMessage( char * OTP, char * HelloMessage, char * Received_HelloMessage_HMAC) {
     Serial.println(">> [AUTH] Checking Hello Message Signature");
 
-    // Generate HMAC_MD5 of Hello Message, using OTP as key
     char * Generated_HelloMessage_HMAC;
     char * concatData;
 
-    concatData = new char[strlen(connectedHub->HubAddress) + 44];
+    concatData = new char[connectedHub->HubAddressLen + 44];
 
-    memcpy( concatData, connectedHub->HubAddress, strlen(connectedHub->HubAddress) );
-    memcpy( (concatData + strlen(connectedHub->HubAddress)), HelloMessage, 44 );
+    memcpy( concatData, connectedHub->HubAddress, connectedHub->HubAddressLen );
+    memcpy( (concatData + connectedHub->HubAddressLen), HelloMessage, 44 );
 
-    Generated_HelloMessage_HMAC = MD5_hmac.hmac_md5(concatData, strlen(connectedHub->HubAddress) + 44, OTP, 16);
+    Generated_HelloMessage_HMAC = MD5_hmac.hmac_md5(concatData, connectedHub->HubAddressLen + 44, OTP, 16);
 
     for (int i=0; i < 16; i++){
         if (Received_HelloMessage_HMAC[i] != Generated_HelloMessage_HMAC[i]){
@@ -302,20 +308,44 @@ char * signHelloAcceptedMessage( char * SObjectAddress, char * OTP, char * times
     char * HelloAcceptedMessage_HMAC;
     char * concatData;
     unsigned int memoryPosition = 0;
-    unsigned int totalLen = strlen(connectedHub->HubAddress) + strlen(SObjectAddress) + strlen(timestamp);
+    int totalLen = connectedHub->HubAddressLen + strlen(SObjectAddress) + 4;
 
     concatData = new char[totalLen];
 
-    memcpy( concatData, connectedHub->HubAddress, strlen(connectedHub->HubAddress) );
-    memoryPosition += strlen(connectedHub->HubAddress);
+    memcpy( concatData, connectedHub->HubAddress, connectedHub->HubAddressLen );
+    memoryPosition += connectedHub->HubAddressLen;
+
     memcpy( (concatData + memoryPosition), SObjectAddress, strlen(SObjectAddress) );
     memoryPosition += strlen(SObjectAddress);
-    memcpy( (concatData + memoryPosition), timestamp, strlen(timestamp) );
 
-    HelloAcceptedMessage_HMAC = MD5_hmac.hmac_md5(concatData, totalLen, OTP, 16);
+    memcpy( (concatData + memoryPosition), timestamp, 4 );
+    
+    HelloAcceptedMessage_HMAC = MD5_hmac.hmac_md5(concatData, connectedHub->HubAddressLen + strlen(SObjectAddress) + 4, OTP, 16);
+
+    Serial.print("HelloAcceptedMessage HMAC generated: ");
+    printByteArray(HelloAcceptedMessage_HMAC, 16);
 
     return HelloAcceptedMessage_HMAC;
     
+}
+
+
+/*******************
+
+encryptData
+
+*******************/
+
+char * encryptData(std::string data) {
+
+    char * cipherData = new char[data.length()];
+
+    cipherData = (char*) rc4_do_crypt(&rc4, (unsigned char *) data.c_str(), data.length(), (unsigned char *) connectedHub->Ksession, 11);
+    
+    Serial.print("Cipher Data: ");
+    printByteArray(cipherData, data.length());
+
+    return cipherData;
 }
 
 

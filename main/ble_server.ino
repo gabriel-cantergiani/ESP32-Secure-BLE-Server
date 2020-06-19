@@ -1,4 +1,9 @@
-// Aqui vao: criacao do Servico e das characteristicas  , callbacks (onReq.. onWrite..OnRead..), envio de mensagens, lista de Mhubs conectados
+/*
+*   BLE_SERVER:
+*   This module implements the Bluetooth Low Energy Server, including the callbacks for when a Characteristic is read and write.
+*
+*   Created by: Gabriel Cantergiani, June 2020
+*/
 
 #include <BLEDevice.h>
 #include <BLEDescriptor.h>
@@ -29,6 +34,9 @@ BLECharacteristic *pCharacteristic_GET_HELLO;
 BLECharacteristic *pCharacteristic_READ;
 BLECharacteristic *pCharacteristic_WRITE;
 BLEServer *pServer;
+
+// Current sensor Data
+std::string data = "sensorData";
 
 
 // Defining Callback functions
@@ -81,29 +89,16 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
                 return;
             }
 
-            Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Copying value into PACK. In State: ");
+            Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Copying packet value. In State: ");
             Serial.println(getHubState());
 
             // Get characteristic value
             std::string data = pCharacteristic->getValue();
 
-            // DEBUG
-            Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] PackageK content (hex): ");
-            for (int i=0; i<data.length(); i++){
-                    Serial.print(data[i], HEX);
-            }
-            Serial.println("");
-
-            if (data.length() != 20){
-                Serial.println(">>>> [BLE_SERVER] [AUTH_WRITE] Failed to read BLE packet. There are missing bytes.");
-            }
-
-            // DEBUG END
-
             copyPacketToHub(data.c_str(), 20);
 
             if (getHubState() == 4) {
-                Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Pack is complete!");
+                Serial.print(">>>> [BLE_SERVER] [AUTH_WRITE] Authentication Pack is complete! Starting to check Authentication...");
 
                 bool auth_result = checkAuthentication( (char*) BLEDevice::getAddress().toString().c_str());
 
@@ -139,6 +134,7 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [GET_MAC] MacAddress sent!");
         }
+        // GET_HELLO -> Sends AcceptedHelloMessage to Mobile Hub after authentication is complete
         else if( pCharacteristic->getUUID().toString() == GET_HELLO_UUID) {
             
             if( !isHubAuthenticated() ){
@@ -148,9 +144,22 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
 
             Serial.println(">>> [BLE_SERVER] [GET_HELLO] Sendind Accepted Hello Message to Authenticated MHub.");
 
-            pCharacteristic->setValue(getHubAcceptedMessage());
+            pCharacteristic->setValue( (uint8_t *) getHubAcceptedMessage(), 16);
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [GET_HELLO] Accepted Hello Message sent!");
+
+        }
+        // READ -> Sends this device sensor data securely, encrypted with Ksession
+        else if( pCharacteristic->getUUID().toString() == READ_UUID && isAuthenticated){
+
+            
+            char * cipherData = encryptData(data);
+            Serial.print(">>> [BLE_SERVER] [READ] Sending (encrypted) data: ");
+            Serial.println(data.c_str());
+
+            pCharacteristic->setValue( (uint8_t *) cipherData, data.length());
+            pCharacteristic->notify();
+            Serial.println(">>> [BLE_SERVER] [READ] Encrypted Data sent!");
 
         }
 
@@ -159,7 +168,7 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
 
 
 
-// Func que inicializa servidor, servico e characteristics
+// Initialize BLE Server, Service and Characteristics
 
 void initializeServer() {
     isConnected = false;
@@ -191,12 +200,6 @@ void initializeServer() {
     pCharacteristic_WRITE->setCallbacks(new CharacteristicCallbacks());
 
     // Set Descriptors to all characteristics
-    // pCharacteristic_GET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    // pCharacteristic_SET_MAC->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    // pCharacteristic_AUTH_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    // pCharacteristic_GET_HELLO->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    // pCharacteristic_READ->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
-    // pCharacteristic_WRITE->addDescriptor(new BLEDescriptor(DESCRIPTOR_UUID));
     pCharacteristic_GET_MAC->addDescriptor(new BLE2902());
     pCharacteristic_SET_MAC->addDescriptor(new BLE2902());
     pCharacteristic_AUTH_WRITE->addDescriptor(new BLE2902());
