@@ -70,7 +70,7 @@ int getHubState(){
 
 void copyPacketToHub(const char * data, int datalen){
     // Copy value to Package
-    memcpy( (connectedHub->pack + connectedHub->lastPackSize)  , data , datalen );
+    memcpy( (connectedHub->pack + connectedHub->lastPackSize) , data , datalen );
 
     // Increase pack position by value size
     connectedHub->lastPackSize = connectedHub->lastPackSize + datalen;
@@ -255,8 +255,10 @@ char * generateOTP( char * SObjectAddress, char * OTPChallenge, unsigned int OTP
     memcpy( (concatData + memoryPosition) , Kauth_obj, strlen(Kauth_obj) );
 
     OTP = new unsigned char[16];
+    MD5_hash.reset();
     MD5_hash.add(concatData, 56);
     MD5_hash.getHash(OTP);
+    MD5_hash.reset();
 
     Serial.print(">>> [AUTH] OTP generated! Content: ");
     printByteArray(OTP, 16);

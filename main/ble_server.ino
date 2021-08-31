@@ -94,7 +94,7 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
 
             // Get characteristic value
             std::string data = pCharacteristic->getValue();
-
+    
             copyPacketToHub(data.c_str(), 20);
 
             if (getHubState() == 4) {
@@ -105,6 +105,7 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
                 // If authentication fails, disconnects and starts listenning for new connections again
                 if ( !auth_result){
                     Serial.println(">>>> [BLE_SERVER] Authentication failed.");
+                    removeConnectedHub();
                     pServer->disconnect(pServer->getConnId());
                     return;
                 }
