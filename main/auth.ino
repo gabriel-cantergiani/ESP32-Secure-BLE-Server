@@ -331,6 +331,47 @@ char * signHelloAcceptedMessage( char * SObjectAddress, char * OTP, char * times
     
 }
 
+/*******************
+
+generateSecureMessage
+
+*******************/
+
+char * generateSecureMessage(std::string data) {
+
+    char * cipherData;
+    char * newTimestamp;
+    char * messageHMAC;
+    char * secureMessage;
+    unsigned int memoryPosition = 0;
+
+    // Encrypt data
+    cipherData = encryptData(data);
+
+    // // Generate new timestamp
+    // newTimestamp = generateNewTimestamp();
+
+    // Append new timestamp to encrypted data
+    memcpy(secureMessage, cipherData, strlen(cipherData) );
+    memoryPosition += strlen(cipherData);
+
+    // memcpy( (secureMessage + memoryPosition), newTimestamp, strlen(newTimestamp) );
+    // memoryPosition += strlen(newTimestamp);
+
+    // Generate a message HMAC using OTP as key
+    messageHMAC = MD5_hmac.hmac_md5(secureMessage, memoryPosition, connectedHub->OTP, 16);
+
+    // Append HMAC to encrypted data + timestamp
+    memcpy( (secureMessage + memoryPosition), messageHMAC, strlen(messageHMAC) );
+
+    Serial.print("Secure Message generated: ");
+    printByteArray(secureMessage, strlen(secureMessage));
+
+    // Return message
+    return secureMessage;
+    
+}
+
 
 /*******************
 
@@ -348,6 +389,32 @@ char * encryptData(std::string data) {
     printByteArray(cipherData, data.length());
 
     return cipherData;
+}
+
+
+/*******************
+
+generateNewTimestamp
+
+*******************/
+
+char * generateNewTimestamp() {
+
+    int newTimestamp;
+    char * newTimestampBytes;
+
+    // Convert timestamp bytes to int
+    memcpy(&newTimestamp, connectedHub->timestamp, 4);
+
+    // Increment current timestamp by one
+    newTimestamp += 1;
+
+    // Convert timestamp int to bytes
+    memcpy(newTimestampBytes, (void*) newTimestamp, 4);
+
+    connectedHub->timestamp = newTimestampBytes;
+
+    return newTimestampBytes;
 }
 
 
