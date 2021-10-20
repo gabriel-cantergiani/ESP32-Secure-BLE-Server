@@ -337,35 +337,40 @@ generateSecureMessage
 
 *******************/
 
-char * generateSecureMessage(std::string data) {
+char * generateSecureMessage(std::string data, int data_length) {
 
     char * cipherData;
-    char * newTimestamp;
     char * messageHMAC;
     char * secureMessage;
     unsigned int memoryPosition = 0;
 
+    // Data + HMAC
+    secureMessage = new char[data_length + 16];
+
+    Serial.print(">>> [AUTH][SECURE_MESSAGE] Raw Data: ");
+    Serial.println(data.c_str());
+
     // Encrypt data
     cipherData = encryptData(data);
 
-    // // Generate new timestamp
-    // newTimestamp = generateNewTimestamp();
+    Serial.print(">>> [AUTH][SECURE_MESSAGE] Encrypted Data: ");
+    printByteArray(cipherData, data_length);
 
-    // Append new timestamp to encrypted data
-    memcpy(secureMessage, cipherData, strlen(cipherData) );
-    memoryPosition += strlen(cipherData);
-
-    // memcpy( (secureMessage + memoryPosition), newTimestamp, strlen(newTimestamp) );
-    // memoryPosition += strlen(newTimestamp);
+    // Copy encrypted data to message
+    memcpy(secureMessage, cipherData, data.length() );
+    memoryPosition += data_length;
 
     // Generate a message HMAC using OTP as key
     messageHMAC = MD5_hmac.hmac_md5(secureMessage, memoryPosition, connectedHub->OTP, 16);
 
-    // Append HMAC to encrypted data + timestamp
-    memcpy( (secureMessage + memoryPosition), messageHMAC, strlen(messageHMAC) );
+    Serial.print(">>> [AUTH][SECURE_MESSAGE] Message HMAC: ");
+    printByteArray(messageHMAC, 16);
 
-    Serial.print("Secure Message generated: ");
-    printByteArray(secureMessage, strlen(secureMessage));
+    // Append HMAC to encrypted data
+    memcpy( (secureMessage + memoryPosition), messageHMAC, 16 );
+
+    Serial.print(" [AUTH][SECURE_MESSAGE] Secure Message generated (message + hmac): ");
+    printByteArray(secureMessage, data_length + 16);
 
     // Return message
     return secureMessage;
@@ -384,9 +389,6 @@ char * encryptData(std::string data) {
     char * cipherData = new char[data.length()];
 
     cipherData = (char*) rc4_do_crypt(&rc4, (unsigned char *) data.c_str(), data.length(), (unsigned char *) connectedHub->Ksession, 11);
-    
-    Serial.print("Cipher Data: ");
-    printByteArray(cipherData, data.length());
 
     return cipherData;
 }
@@ -401,7 +403,7 @@ generateNewTimestamp
 char * generateNewTimestamp() {
 
     int newTimestamp;
-    char * newTimestampBytes;
+    char * newTimestampBytes = new char[4];
 
     // Convert timestamp bytes to int
     memcpy(&newTimestamp, connectedHub->timestamp, 4);
@@ -410,9 +412,14 @@ char * generateNewTimestamp() {
     newTimestamp += 1;
 
     // Convert timestamp int to bytes
-    memcpy(newTimestampBytes, (void*) newTimestamp, 4);
+//    memcpy(newTimestampBytes, (void*) newTimestamp, 4);
+    newTimestampBytes[0] = (newTimestamp >> 24) & 0xFF;
+    newTimestampBytes[1] = (newTimestamp >> 16) & 0xFF;
+    newTimestampBytes[2] = (newTimestamp >> 8) & 0xFF;
+    newTimestampBytes[3] = newTimestamp & 0xFF;
 
-    connectedHub->timestamp = newTimestampBytes;
+//    connectedHub->timestamp = newTimestampBytes;
+    memcpy(connectedHub->timestamp, newTimestampBytes, 4);
 
     return newTimestampBytes;
 }
