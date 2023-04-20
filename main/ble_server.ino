@@ -36,7 +36,8 @@ BLECharacteristic *pCharacteristic_WRITE;
 BLEServer *pServer;
 
 // Current sensor Data
-std::string data = "sensorData";
+std::string data = "data";
+int data_length = 4;
 
 
 // Defining Callback functions
@@ -153,12 +154,12 @@ class CharacteristicCallbacks: public BLECharacteristicCallbacks {
         // READ -> Sends this device sensor data securely, encrypted with Ksession
         else if( pCharacteristic->getUUID().toString() == READ_UUID && isAuthenticated){
 
-            
-            char * cipherData = encryptData(data);
+            char * secureMessage = generateSecureMessage(data, data_length);
             Serial.print(">>> [BLE_SERVER] [READ] Sending (encrypted) data: ");
             Serial.println(data.c_str());
 
-            pCharacteristic->setValue( (uint8_t *) cipherData, data.length());
+
+            pCharacteristic->setValue( (uint8_t *) secureMessage, strlen(secureMessage));
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [READ] Encrypted Data sent!");
 
