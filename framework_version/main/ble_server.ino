@@ -177,7 +177,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
             Serial.println(data.c_str());
 
 
-            pCharacteristic->setValue( (uint8_t *) secureMessage, strlen(secureMessage));
+            pCharacteristic->setValue( (uint8_t *) secureMessage, 20);
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [READ] Encrypted Data sent!");
 
