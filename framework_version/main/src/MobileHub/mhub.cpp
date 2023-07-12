@@ -24,12 +24,12 @@ class MobileHub {
         char *Ksession;
         bool isReceivingHelloMessage;
 
-        MobileHub() {
+        MobileHub(int authPackageSize) {
             STATE = 0;
             Authenticated = false;
             lastPackSize = 0;
             AcceptedMessage = NULL;
-            pack = new char[60];
+            pack = new char[authPackageSize];
             isReceivingHelloMessage = false;
         }
 
