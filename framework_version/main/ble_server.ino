@@ -112,7 +112,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
             // Get characteristic value
             std::string data = pCharacteristic->getValue();
 
-            copyPacketToHub(data.c_str(), 20);
+            copyPacketToHub(data.c_str());
         }
     }
 
@@ -165,7 +165,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
 
             Serial.println(">>> [BLE_SERVER] [GET_HELLO] Sendind Accepted Hello Message to Authenticated MHub.");
 
-            pCharacteristic->setValue((uint8_t *)getHubAcceptedMessage(), 16);
+            pCharacteristic->setValue((uint8_t *)getHubAcceptedMessage(), 20);
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [GET_HELLO] Accepted Hello Message sent!");
         }
@@ -177,7 +177,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
             Serial.println(data.c_str());
 
 
-            pCharacteristic->setValue( (uint8_t *) secureMessage, 20);
+            pCharacteristic->setValue( (uint8_t *) secureMessage, 24);
             pCharacteristic->notify();
             Serial.println(">>> [BLE_SERVER] [READ] Encrypted Data sent!");
 

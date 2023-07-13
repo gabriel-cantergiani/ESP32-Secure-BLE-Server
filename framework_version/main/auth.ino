@@ -93,12 +93,12 @@ void setIsReceivingHelloMessage(bool state){
   connectedHub->isReceivingHelloMessage = state;
 }
 
-void copyPacketToHub(const char * data, int datalen){
+void copyPacketToHub(const char * data){
     // Copy value to Package
-    memcpy( (connectedHub->pack + connectedHub->lastPackSize) , data , datalen );
+     memcpy( (connectedHub->pack + connectedHub->lastPackSize) , data , strlen(data) );
 
-    // Increase pack position by value size
-    connectedHub->lastPackSize = connectedHub->lastPackSize + datalen;
+     // Increase pack position by value size
+     connectedHub->lastPackSize = connectedHub->lastPackSize + strlen(data);
 
     // Increase STATE
     connectedHub->STATE++;
